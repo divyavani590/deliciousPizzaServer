@@ -1,0 +1,233 @@
+/* eslint-disable  func-names */
+/* eslint quote-props: ["error", "consistent"]*/
+/**
+ * This sample demonstrates a simple skill built with the Amazon Alexa Skills
+ * nodejs skill development kit.
+ * This sample supports multiple lauguages. (en-US, en-GB, de-DE).
+ * The Intent Schema, Custom Slots and Sample Utterances for this skill, as well
+ * as testing instructions are located at https://github.com/alexa/skill-sample-nodejs-fact
+ **/
+
+'use strict';
+var AWS = require('aws-sdk');
+const Alexa = require('ask-sdk-core');
+AWS.config.update({region: 'us-east-1',
+    aws_access_key_id : 'AKIAI3CU6E34MLCXLIRA',
+aws_secret_access_key : '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'
+});
+const https = require('https');
+const http = require('http');
+var input,contxt;
+/*
+AWS.config.update({
+region: "eu-west-1" // or whatever region your lambda and dynamo is
+});*/
+//=========================================================================================================================================
+//TODO: The items below this comment need your attention.
+//=========================================================================================================================================
+
+//Replace with your app ID (OPTIONAL).  You can find this value at the top of your skill's page on http://developer.amazon.com.
+//Make sure to enclose your value in quotes, like this: const APP_ID = 'amzn1.ask.skill.bb4045e6-b3e8-4133-b650-72923c5980f1';
+
+let skill;
+
+function httpGet(intentName,dogPictureNumber) {
+  return new Promise(((resolve, reject) => {
+   var options = {
+        host: 'ec2-18-234-216-45.compute-1.amazonaws.com',
+        port: 3000,
+        path: '/dat?intentName='+intentName+'&dogPictureNumber='+dogPictureNumber,
+        method: 'GET'
+    };
+    
+    const request = http.request(options, (response) => {
+      response.setEncoding('utf8');
+      let returnData = '';
+
+      response.on('data', (chunk) => {
+        returnData += chunk;
+      });
+
+      response.on('end', () => {
+        resolve(JSON.parse(returnData));
+      });
+
+      response.on('error', (error) => {
+        reject(error);
+      });
+    });
+    request.end();
+  }));
+};
+
+const LaunchRequestHandler = {
+  canHandle(handlerInput) {
+    return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
+  },
+  handle(handlerInput) {
+    const speechText = 'Welcome to Delicious Pizza, Please choose a crust to get started';
+
+    return handlerInput.responseBuilder
+      .speak(speechText)
+      .reprompt(speechText)
+      .withSimpleCard('Hello World', speechText)
+      .getResponse();
+  }
+};
+
+const ShowDogPictureIntentHandler = {
+  canHandle(handlerInput) {
+    return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+      && handlerInput.requestEnvelope.request.intent.name === 'ShowDogPictureIntent';
+  },
+  async handle(handlerInput) {
+    var dogPictureNumber = handlerInput.requestEnvelope.request.intent.slots.number.value;
+    const response = await httpGet(handlerInput.requestEnvelope.request.intent.name, dogPictureNumber);
+    
+    console.log(response);
+
+    return handlerInput.responseBuilder
+            .speak(response.asdf)
+            .reprompt("What would you like?")
+            .getResponse();
+  }
+};
+
+const ShowAllDogPicturesIntentHandler = {
+  canHandle(handlerInput) {
+    console.log(handlerInput.requestEnvelope.request.intent.name);
+    return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+      && handlerInput.requestEnvelope.request.intent.name === 'ShowAllDogPicturesIntent';
+  },
+  handle(handlerInput) {
+    var speechText = 'You said all dogs ';
+    var params = {
+      Message: 'all', /* required */
+      TopicArn: 'arn:aws:sns:us-east-1:517171830486:dogPic'
+    };
+        
+    // Create promise and SNS service object
+    var publishTextPromise = new AWS.SNS({apiVersion: '2010-03-31'}).publish(params).promise();
+    
+    // Handle promise's fulfilled/rejected states
+    publishTextPromise.then(
+      function(data) {
+        console.log(`Message ${params.Message} send sent to the topic ${params.TopicArn}`);
+        console.log("MessageID is " + data.MessageId);
+      }).catch(
+        function(err) {
+        console.error(err, err.stack);
+      });
+
+    return handlerInput.responseBuilder
+      .speak(speechText)
+      .withSimpleCard('Hello World', speechText)
+      .getResponse();
+  }
+};
+
+const testHandler = {
+  
+  handle(handlerInput) {
+    var speechText = handlerInput.message;
+   
+    return handlerInput.responseBuilder
+      .speak(speechText)
+      .withSimpleCard('Hello World', speechText)
+      .getResponse();
+  }
+};
+
+const HelpIntentHandler = {
+  canHandle(handlerInput) {
+    return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+      && handlerInput.requestEnvelope.request.intent.name === 'AMAZON.HelpIntent';
+  },
+  handle(handlerInput) {
+    const speechText = 'You can say hello to me!';
+
+    return handlerInput.responseBuilder
+      .speak(speechText)
+      .reprompt(speechText)
+      .withSimpleCard('Hello World', speechText)
+      .getResponse();
+  }
+};
+
+const CancelAndStopIntentHandler = {
+  canHandle(handlerInput) {
+    return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+      && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.CancelIntent'
+        || handlerInput.requestEnvelope.request.intent.name === 'AMAZON.StopIntent');
+  },
+  handle(handlerInput) {
+    const speechText = 'Goodbye!';
+
+    return handlerInput.responseBuilder
+      .speak(speechText)
+      .withSimpleCard('Hello World', speechText)
+      .getResponse();
+  }
+};
+
+const SessionEndedRequestHandler = {
+  canHandle(handlerInput) {
+    return handlerInput.requestEnvelope.request.type === 'SessionEndedRequest';
+  },
+  handle(handlerInput) {
+    //any cleanup logic goes here
+    return handlerInput.responseBuilder.getResponse();
+  }
+};
+
+const ErrorHandler = {
+  canHandle() {
+    return true;
+  },
+  handle(handlerInput, error) {
+    console.log(`Error handled: ${error.message}`);
+
+    return handlerInput.responseBuilder
+      .speak('Sorry, I can\'t understand the command. Please say again.')
+      .reprompt('Sorry, I can\'t understand the command. Please say again.')
+      .getResponse();
+  },
+};
+
+exports.handler = async function (event, context) {
+  console.log(`REQUEST++++${JSON.stringify(event)}`);
+  let message = event.Records ? event.Records[0].Sns.Message : '';
+  console.log(message);
+
+ 
+  if (!skill) {
+    skill = Alexa.SkillBuilders.custom()
+      .addRequestHandlers(
+        LaunchRequestHandler,
+        ShowDogPictureIntentHandler,
+        ShowAllDogPicturesIntentHandler,
+        testHandler,
+        HelpIntentHandler,
+        CancelAndStopIntentHandler,
+        SessionEndedRequestHandler,
+      )
+      .addErrorHandlers(ErrorHandler)
+      .create();
+  }
+  
+   if(message == "test"){
+    console.log(`REQUEST SNS++++${JSON.stringify(input)}`);
+    const response = await skill.invoke(input, contxt);
+    console.log(`RESPONSE SNS++++${JSON.stringify(response)}`);
+    return response;
+  }else{
+      input = event;
+  contxt = context;
+  const response = await skill.invoke(event, context);
+  console.log(`RESPONSE++++${JSON.stringify(response)}`);
+return response;
+  }
+
+  
+  
+};
